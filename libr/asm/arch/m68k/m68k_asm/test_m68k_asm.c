@@ -11,9 +11,10 @@ static void can_assemble_nop(void **state) {
   int i;
   for(i = 0; i < 32; i++)
    buf[i] = -1; 
-  m68k_assemble(buf, "nop");
-  assert_int_equal(buf[0], 0x4E);
-  assert_int_equal(buf[1], 0x71);
+  int size = m68k_assemble(buf, "nop");
+  assert_int_equal(0x4E, buf[0]);
+  assert_int_equal(0x71, buf[1]);
+  assert_int_equal(2, size);
 }
 
 static void does_nothing_for_bad_insn(void **state) {
@@ -22,9 +23,10 @@ static void does_nothing_for_bad_insn(void **state) {
   int i;
   for(i = 0; i < 32; i++)
    buf[i] = -1; 
-  m68k_assemble(buf, "bad_insn");
-  assert_int_equal(buf[0], 0xFF);
-  assert_int_equal(buf[1], 0xFF);
+  int size = m68k_assemble(buf, "bad_insn");
+  assert_int_equal(0xFF, buf[0]);
+  assert_int_equal(0xFF, buf[1]);
+  assert_int_equal(-1, size);
 }
 
 int main(void) {

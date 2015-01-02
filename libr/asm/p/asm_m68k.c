@@ -9,7 +9,7 @@
 #include <r_asm.h>
 
 #include "m68k/m68k_disasm/m68k_disasm.h"
-#include "m68k/m68k_asm/m68k_asm.h"
+#include "m68k/m68k_asm/m68k_asm.c"
 
 static int disassemble(RAsm *a, RAsmOp *aop, const ut8 *buf, int len) {
 	m68k_word bof[8] = {0};

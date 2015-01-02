@@ -28,8 +28,8 @@
 #include <ctype.h>
 #include <string.h>
 
-static const char * const regs[17] = {
-  "a0", "a1", "a2", "a3", "a4", "a5", "a6", "a7",
+static const char * const regs[18] = {
+  "a0", "a1", "a2", "a3", "a4", "a5", "a6", "a7", "sp",
   "d0", "d1", "d2", "d3", "d4", "d5", "d6", "d7",
   NULL
 };
@@ -44,8 +44,9 @@ static struct {
 };
 
 static int m68k_assemble(ut8* out, const char* str) {
+  int size = -1;
   char *s = strdup(str);
-  // reserve space for up to 4 tokens... need to figure out max #tokens in 68k...
+  // reserve space for up to 4 tsizeens... need to figure out max #tokens in 68k...
   char w0[32], w1[32], w2[32], w3[32];
   *w0=*w1=*w2=*w3=0;
   sscanf (s, "%31s", w0);
@@ -57,11 +58,12 @@ static int m68k_assemble(ut8* out, const char* str) {
           case 'N': // nop
             memset(out, 0x4E, 2);
             memset(out+1, 0x71, 2);
+            size = 2;
             break;
         }
       }
     }
   }
   free(s);
-  return -1;
+  return size;
 }
