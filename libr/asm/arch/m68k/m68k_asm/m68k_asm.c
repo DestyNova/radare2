@@ -1,64 +1,130 @@
-/* m68k_asm.c - Assembler for the Motorola 68000 CPU
-
-   Copyright (C) 2015 Oisín Mac Fhearaí
-
-   Permission is hereby granted, free of charge, to any person
-   obtaining a copy of this software and associated documentation
-   files (the "Software"), to deal in the Software without
-   restriction, including without limitation the rights to use, copy,
-   modify, merge, publish, distribute, sublicense, and/or sell copies
-   of the Software, and to permit persons to whom the Software is
-   furnished to do so, subject to the following conditions:
-
-   The above copyright notice and this permission notice shall be
-   included in all copies or substantial portions of the Software.
-
-   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-   EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
-   OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-   NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
-   BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
-   ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-   CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-
-   Oisín Mac Fhearaí <denpashogai@gmail.com>
-   */
+/*
+ * m68k_asm.c - Assembler for the Motorola 68000 CPU
+ * Copyright (C) 2015 Oisín Mac Fhearaí <denpashogai@gmail.com>
+ * License: 2-clause BSD
+ */
 
 #include <stdio.h>
 #include <ctype.h>
-#include <string.h>
+#include <r_util.h>
 
-static const char * const regs[18] = {
-  "a0", "a1", "a2", "a3", "a4", "a5", "a6", "a7", "sp",
-  "d0", "d1", "d2", "d3", "d4", "d5", "d6", "d7",
-  NULL
+static struct {
+  const char *name;
+  char code;
+} regs[] = {
+  {"d0", 0},
+  {"d1", 1},
+  {"d2", 2},
+  {"d3", 3},
+  {"d4", 4},
+  {"d5", 5},
+  {"d6", 6},
+  {"d7", 7},
+
+  {"a0", 8},
+  {"a1", 9},
+  {"a2", 10},
+  {"a3", 11},
+  {"a4", 12},
+  {"a5", 13},
+  {"a6", 14},
+  {"a7", 15},
+  {"sp", 15},
+
+  {"pc", 16},
+  {NULL}
 };
+
 static struct {
   const char *name;
   int type;
   int args;
-  int n;
+  int length;
+  const char *opcode;
 } ops[] = {
-  { "nop", 'N', 0, 0 },
+  { "nop", 'N', 0, 2, "\x4E\x71"},
+  { "addq.l", 'S', 2, 2, "\x50\x00"},
+  { "addq.w", 'S', 2, 2, "\x50\x00"},
+  { "addq.b", 'S', 2, 2, "\x50\x00"},
   { NULL }
 };
 
-static int m68k_assemble(ut8* out, const char* str) {
+static void write_bits(ut8* out, int val, int position, int num_bits) {
+  int shifted = val << position;
+  char h_byte = (shifted >> 8) & 0xFF;
+  char l_byte = shifted & 0xFF;
+  //printf("val: %d, pos: %d, num_bits: %d, h_byte: %X l_byte: %X\n", val, position, num_bits, h_byte, l_byte);
+  //r_mem_copyendian(&shifted, &shifted, 2, 1);
+  // this will need fixing for 32-bits etc...
+  if(position < 16) {
+      out[0] |= h_byte;
+      out[1] |= l_byte;
+      //printf("post-or: out_0: %X out_1: %X\n", out[0], out[1]);
+  }
+}
+
+static void write_operand_size(ut8* out, const char* instruction, int position) {
+  char *dot = strchr(instruction, '.');
+  int pos = dot ? dot - instruction : -1;
+  if(pos >= 0 && pos < 63) {
+    int size_code = 0;
+    switch(instruction[pos+1]) {
+      case 'l':
+        size_code++;
+      case 'w':
+        size_code++;
+      case 'b':
+        write_bits(out, size_code, position, 2);
+        break;
+    }
+  }
+}
+
+static void write_q_immediate(ut8* out, const char* q_arg) {
+}
+
+static void write_addressing_mode(ut8* out, char mode) {
+  write_bits(out, mode, 3, 3);
+}
+
+static void write_effective_address(ut8* out, const char* ea_arg) {
+  int i = 0;
+  for (i=0; regs[i].name; i++) {
+    if (!strcmp(regs[i].name, ea_arg)) {
+      // code % 8, since mode field selects An or Dn regs...
+      //printf("ah! reg => %s, code => %d\n", regs[i].name, regs[i].code % 8);
+      write_bits(out, regs[i].code % 8, 0, 3);
+    }
+  }
+}
+
+static int m68k_assemble(ut8* out, ut32 pc, const char* str) {
   int size = -1;
   char *s = strdup(str);
-  // reserve space for up to 4 tsizeens... need to figure out max #tokens in 68k...
-  char w0[32], w1[32], w2[32], w3[32];
-  *w0=*w1=*w2=*w3=0;
-  sscanf (s, "%31s", w0);
+  r_str_replace_char (s, ',', ' ');
+  // reserve space for instruction and 2 operands... may need to change this
+  char w0[64], w1[64], w2[64];
+  *w0=*w1=*w2=0;
+  sscanf (s, "%63s", w0);
   if (*w0) {
     int i;
     for (i=0; ops[i].name; i++) {
       if (!strcmp(ops[i].name, w0)) {
+        memcpy(out, ops[i].opcode, ops[i].length);
+        size = ops[i].length; // increase later if long displacement etc
+        //printf("opcode: %x%x, size: %d\n", ops[i].opcode[0], ops[i].opcode[1], ops[i].length);
+        if(ops[i].args == 1)
+          sscanf(s, "%63s %63s", w0, w1);
+        else if(ops[i].args == 2)
+          sscanf(s, "%63s %63s %63s", w0, w1, w2);
+
         switch (ops[i].type) {
-          case 'N': // nop
-            memset(out, 0x4E, 2);
-            memset(out+1, 0x71, 2);
-            size = 2;
+          case 'S':
+            // maybe better to store position + length in op struct
+            write_operand_size(out, ops[i].name, 6);
+            write_q_immediate(out, w1);
+            write_addressing_mode(out, 1);  // TODO: fix for An regs
+            write_effective_address(out, w2);
             break;
         }
       }

@@ -39,7 +39,8 @@ static int disassemble(RAsm *a, RAsmOp *aop, const ut8 *buf, int len) {
 }
 
 static int assemble(RAsm *a, RAsmOp *op, const char *buf) {
-	return m68k_assemble(op->buf, buf);
+	int iaddr = (int)a->pc;
+	return m68k_assemble(op->buf, iaddr, buf);
 }
 
 RAsmPlugin r_asm_plugin_m68k = {
