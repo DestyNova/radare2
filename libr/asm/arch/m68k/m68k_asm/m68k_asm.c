@@ -39,13 +39,12 @@ static struct {
   const char *name;
   int type;
   int args;
-  int length;
   const char *opcode;
 } ops[] = {
-  { "nop", 'N', 0, 2, "\x4E\x71"},
-  { "addq.l", 'S', 2, 2, "\x50\x00"},
-  { "addq.w", 'S', 2, 2, "\x50\x00"},
-  { "addq.b", 'S', 2, 2, "\x50\x00"},
+  { "nop", 'N', 0, "\x4E\x71"}, // reset/illegal and other 0-args here
+  { "addq.l", 'S', 2, "\x50\x00"},
+  { "addq.w", 'S', 2, "\x50\x00"},
+  { "addq.b", 'S', 2, "\x50\x00"},
   { NULL }
 };
 
@@ -80,7 +79,18 @@ static void write_operand_size(ut8* out, const char* instruction, int position) 
   }
 }
 
-static void write_q_immediate(ut8* out, const char* q_arg) {
+static int write_q_immediate(ut8* out, const char* q_arg) {
+  int len = strlen(q_arg);
+  if(len > 3) {
+    int num = -1;
+    // only works with hex immediates for now
+    //q_arg = "#0xA";
+    int ok = sscanf(q_arg+3, "%x", &num);
+    //printf("ok: %d num: %d arg: %s\n", ok, num, q_arg+3);
+    write_bits(out, num, 9, 3);
+    return 0;
+  }
+  return -1;  // TODO: care about failed parse
 }
 
 static void write_addressing_mode(ut8* out, char mode) {
@@ -110,8 +120,8 @@ static int m68k_assemble(ut8* out, ut32 pc, const char* str) {
     int i;
     for (i=0; ops[i].name; i++) {
       if (!strcmp(ops[i].name, w0)) {
-        memcpy(out, ops[i].opcode, ops[i].length);
-        size = ops[i].length; // increase later if long displacement etc
+        memcpy(out, ops[i].opcode, 2);
+        size = 2; // increase later if long displacement etc
         //printf("opcode: %x%x, size: %d\n", ops[i].opcode[0], ops[i].opcode[1], ops[i].length);
         if(ops[i].args == 1)
           sscanf(s, "%63s %63s", w0, w1);
