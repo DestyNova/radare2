@@ -93,8 +93,26 @@ static int write_q_immediate(ut8* out, const char* q_arg) {
   return -1;  // TODO: care about failed parse
 }
 
-static void write_addressing_mode(ut8* out, char mode) {
-  write_bits(out, mode, 3, 3);
+static int write_addressing_mode(ut8* out, char* e_addr) {
+  int len = strlen(e_addr);
+  int mode = -1;
+  if(len == 2) {
+    // write directly to Dn / An
+    switch(e_addr[0]) {
+      case 'd':
+        mode = 0;
+        break;
+      case 'a':
+      case 's':
+        mode = 1;
+        break;
+    }
+  }
+
+  if(mode >= 0)
+    write_bits(out, mode, 3, 3);
+
+  return mode;
 }
 
 static void write_effective_address(ut8* out, const char* ea_arg) {
@@ -129,12 +147,15 @@ static int m68k_assemble(ut8* out, ut32 pc, const char* str) {
           sscanf(s, "%63s %63s %63s", w0, w1, w2);
 
         switch (ops[i].type) {
+          int fail = 0;
           case 'S':
             // maybe better to store position + length in op struct
             write_operand_size(out, ops[i].name, 6);
             write_q_immediate(out, w1);
-            write_addressing_mode(out, 1);  // TODO: fix for An regs
+            fail |= write_addressing_mode(out, w2);
             write_effective_address(out, w2);
+            if(fail < 0)
+              size = -1;
             break;
         }
       }

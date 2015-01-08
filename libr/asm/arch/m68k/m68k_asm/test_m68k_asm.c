@@ -51,6 +51,11 @@ static void simple_instructions(void **state) {
   assert_int_equal(0x4F, buf[1]);
   assert_int_equal(2, size);
 
+  clear_buf(buf);
+  size = m68k_assemble(buf, 0, "addq.b #0x3,d0");
+  assert_int_equal(0x56, buf[0]);
+  assert_int_equal(0x00, buf[1]);
+  assert_int_equal(2, size);
 // TODO: addq to D registers
 }
 
